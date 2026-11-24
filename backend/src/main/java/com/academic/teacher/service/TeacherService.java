@@ -9,13 +9,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.http.HttpStatus;
-
+import com.academic.teacher.api.TeacherApi;
 import java.util.List;
 import java.util.UUID;
-
+import org.springframework.dao.DataIntegrityViolationException;
 @Service
 @Transactional
-public class TeacherService {
+public class TeacherService implements TeacherApi{
 
     private final TeacherRepository teacherRepository;
 
@@ -98,7 +98,19 @@ public class TeacherService {
 
         Teacher teacher = getTeacher(id);
 
-        teacherRepository.delete(teacher);
+        try {
+
+            teacherRepository.delete(teacher);
+            teacherRepository.flush();
+
+        } catch (DataIntegrityViolationException exception) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Cannot delete teacher because related data exists",
+                    exception
+            );
+        }
     }
 
     // Find teacher or throw exception
@@ -133,5 +145,11 @@ public class TeacherService {
                 teacher.getEmail(),
                 teacher.getSpecialization()
         );
+    }
+    @Override
+    @Transactional(readOnly = true)
+    public boolean existsById(UUID teacherId) {
+
+        return teacherRepository.existsById(teacherId);
     }
 }
