@@ -5,18 +5,20 @@ import com.academic.course.dto.CourseResponse;
 import com.academic.course.entity.Course;
 import com.academic.course.repository.CourseRepository;
 import com.academic.teacher.api.TeacherApi;
-
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.http.HttpStatus;
-
+import com.academic.course.api.CourseApi;
+import com.academic.course.api.CourseInfo;
+import org.springframework.transaction.annotation.Propagation;
 import java.util.List;
 import java.util.UUID;
 
 @Service
 @Transactional
-public class CourseService {
+public class CourseService implements CourseApi {
 
     private final CourseRepository courseRepository;
     private final TeacherApi teacherApi;
@@ -93,7 +95,11 @@ public class CourseService {
     public CourseResponse update(
             UUID id, CourseRequest request) {
 
-        Course course = getCourse(id);
+        Course course = courseRepository.findByIdForUpdate(id)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Course not found"
+                ));
 
         if (courseRepository.existsByCourseCodeAndIdNot(
                 request.courseCode(), id)) {
@@ -111,12 +117,23 @@ public class CourseService {
         return toResponse(courseRepository.save(course));
     }
 
-    // DELETE
     public void delete(UUID id) {
 
         Course course = getCourse(id);
 
-        courseRepository.delete(course);
+        try {
+
+            courseRepository.delete(course);
+            courseRepository.flush();
+
+        } catch (DataIntegrityViolationException exception) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Cannot delete course because related data exists",
+                    exception
+            );
+        }
     }
 
     // Validate teacher through public contract
@@ -143,8 +160,15 @@ public class CourseService {
 
     // Map request to entity
     private void updateFields(
-            Course course, CourseRequest request) {
 
+            Course course, CourseRequest request) {
+        if (request.capacity() < course.getCapacity()) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Course capacity cannot be reduced"
+            );
+        }
         course.setCourseCode(request.courseCode());
         course.setTitle(request.title());
         course.setDescription(request.description());
@@ -168,4 +192,28 @@ public class CourseService {
                 course.getActive()
         );
     }
+    @Override
+    @Transactional(readOnly = true)
+    public boolean existsById(UUID courseId) {
+
+        return courseRepository.existsById(courseId);
+    }
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public CourseInfo getCourseForEnrollment(UUID courseId) {
+
+        Course course = courseRepository
+                .findByIdForUpdate(courseId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Course not found"
+                ));
+
+        return new CourseInfo(
+                course.getId(),
+                course.getCapacity(),
+                course.getActive()
+        );
+    }
+
 }
