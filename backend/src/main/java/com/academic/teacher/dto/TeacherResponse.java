@@ -1,4 +1,13 @@
 package com.academic.teacher.dto;
 
-public class TeacherResponse {
+import java.util.UUID;
+
+public record TeacherResponse(
+        UUID id,
+        String teacherNumber,
+        String firstName,
+        String lastName,
+        String email,
+        String specialization
+) {
 }
