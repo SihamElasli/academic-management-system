@@ -1,3 +1,4 @@
+
 CREATE TABLE students (
                           id UUID PRIMARY KEY,
                           student_number VARCHAR(50) NOT NULL UNIQUE,
